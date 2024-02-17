@@ -2,7 +2,7 @@ use serde_json;
 use std::env;
 
 // Available if you need it!
-use serde_bencode
+// use serde_bencode
 
 #[allow(dead_code)]
 fn decode_bencoded_value(encoded_value: &str) -> serde_json::Value {
