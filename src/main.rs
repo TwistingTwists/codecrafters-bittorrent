@@ -1,13 +1,13 @@
 #[allow(unused_imports)]
 // Available if you need it!
-use serde_bencode;
-use serde_json;
-use std::env;
+use serde_json::Value;
+use std::{collections::HashMap, env};
 
 enum Bencode {
     String(String),
     Integer(isize),
     List(Vec<Bencode>),
+    Dictionary(HashMap<String, Bencode>),
 }
 
 impl Bencode {
@@ -22,45 +22,16 @@ impl Bencode {
                 }
                 result
             }
+            Bencode::Dictionary(d) => {
+                let mut map = serde_json::Map::new();
+                for (key, value) in d.into_iter() {
+                    map.insert(key.clone(), value.to_json());
+                }
+                Value::Object(map)
+            }
         }
     }
 }
-
-// #[allow(dead_code)]
-// fn decode_bencoded_value(encoded_value: &str) -> serde_json::Value {
-//     match encoded_value.chars().next() {
-//         Some(c) if c.is_digit(10) => {
-//             let colon_index = encoded_value.find(':').unwrap();
-//             let number_string = &encoded_value[..colon_index];
-//             let number = number_string.parse::<i64>().unwrap();
-//             let string = &encoded_value[colon_index + 1..colon_index + 1 + number as usize];
-//             serde_json::Value::String(string.to_string())
-//         }
-//         Some(c) if c.is_alphabetic() => match c {
-//             'i' => {
-//                 let int_type = encoded_value.find("i").unwrap();
-//                 let number_string = &encoded_value[int_type + 1..encoded_value.len() - 1];
-//                 let number = number_string.parse::<i64>().unwrap();
-
-//                 serde_json::Value::from(number)
-//             }
-//             // l5:hellowi52ee
-//             'l' => {
-//                 let colon_index = encoded_value.find(':').unwrap();
-//                 let string = &encoded_value[colon_index + 1..];
-
-//                 decode_bencoded_value(encoded_value)
-//             }
-//             _ => {
-//                 panic!("Unhandled encoded value: {}", encoded_value)
-//             }
-//         },
-//         Some(_) => {
-//             panic!("Unhandled encoded value: {}", encoded_value)
-//         }
-//         None => panic!("Unhandled encoded value: {}", encoded_value),
-//     }
-// }
 
 fn decode_bencoded_value(encoded_value: &str) -> (Bencode, &str) {
     if encoded_value.chars().next().unwrap().is_digit(10) {
@@ -93,7 +64,26 @@ fn decode_bencoded_value(encoded_value: &str) -> (Bencode, &str) {
             remaining = new_remaining;
         }
 
-        (Bencode::List(list), &remaining[1..])
+        return (Bencode::List(list), &remaining[1..]);
+    };
+
+    // d3:foo3:bar5:helloi52ee => {"hello": 52, "foo":"bar"}
+    if encoded_value.chars().nth(0).unwrap() == 'd' {
+        let mut list: Vec<(String, Bencode)> = Vec::new();
+        let mut remaining = &encoded_value[1..];
+        while remaining.chars().next().unwrap() != 'e' {
+            // decode key
+            let (decoded_key, new_remaining) = decode_bencoded_value(remaining);
+            // decode value
+            let (decoded_value, new_remaining) = decode_bencoded_value(new_remaining);
+            list.push((decoded_key.to_json().to_string(), decoded_value));
+            remaining = new_remaining;
+        }
+
+        (
+            Bencode::Dictionary(list.into_iter().collect()),
+            &remaining[1..],
+        )
     } else {
         panic!("Unhandled value, {}", encoded_value);
     }
@@ -113,5 +103,36 @@ fn main() {
         println!("{}", decoded_value.to_json().to_string());
     } else {
         eprintln!("unknown command: {}", args[1])
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*; // Import the necessary items from the outer module
+    use serde_json::json;
+
+    #[test]
+    fn test_bencode_to_json_conversion() {
+        // Construct the Bencode dictionary as in the example
+        let bencode_example = Bencode::Dictionary(
+            vec![
+                ("key1".to_owned(), Bencode::String("value1".to_owned())),
+                ("key2".to_owned(), Bencode::Integer(42)),
+            ]
+            .into_iter()
+            .collect(),
+        );
+
+        // Convert the Bencode instance into a serde_json::Value
+        let json_value: serde_json::Value = bencode_example.to_json();
+
+        // Expected JSON output
+        let expected_json = json!({
+            "key1": "value1",
+            "key2": 42
+        });
+
+        // Assert that the conversion matches the expected JSON output
+        assert_eq!(json_value, expected_json);
     }
 }
