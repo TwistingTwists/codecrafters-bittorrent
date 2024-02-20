@@ -73,11 +73,13 @@ fn decode_bencoded_value(encoded_value: &str) -> (Bencode, &str) {
         let mut remaining = &encoded_value[1..];
         while remaining.chars().next().unwrap() != 'e' {
             // decode key
-            let (decoded_key, new_remaining) = decode_bencoded_value(remaining);
-            // decode value
-            let (decoded_value, new_remaining) = decode_bencoded_value(new_remaining);
-            list.push((decoded_key.to_json().to_string(), decoded_value));
-            remaining = new_remaining;
+            let decoded: (Bencode, &str) = decode_bencoded_value(remaining);
+            if let (Bencode::String(decoded_key), new_remaining) = decoded {
+                // decode value
+                let (decoded_value, new_remaining) = decode_bencoded_value(new_remaining);
+                list.push((decoded_key, decoded_value));
+                remaining = new_remaining;
+            }
         }
 
         (
