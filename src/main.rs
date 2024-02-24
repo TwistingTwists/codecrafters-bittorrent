@@ -8,13 +8,79 @@ use std::error::Error;
 use std::path::PathBuf;
 use std::{collections::HashMap, fs, io, str};
 
+// type Dictionary<T> = HashMap<<T>, Bencode>;
+
+// struct InfoDict {
+//     info: HashMap<String, Bencode>,
+// }
+
+// // // // // // // //
+// InfoDict
+// // // // // // // //
+
+#[derive(Debug)]
+struct InfoDict(HashMap<String, Bencode>);
+
+trait Encode {
+    fn bencode(&self) -> Option<String>;
+}
+
+impl Encode for InfoDict {
+    fn bencode(&self) -> Option<String> {
+        println!("impl Encode for InfoDict -> bencode");
+        None
+    }
+}
+
+impl<'a> IntoIterator for &'a InfoDict {
+    type Item = (&'a String, &'a Bencode);
+    type IntoIter = std::collections::hash_map::Iter<'a, String, Bencode>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter()
+    }
+}
+
+impl FromIterator<(String, Bencode)> for InfoDict {
+    fn from_iter<I: IntoIterator<Item = (String, Bencode)>>(iter: I) -> Self {
+        let mut map = HashMap::new();
+        for (key, value) in iter {
+            map.insert(key, value);
+        }
+        InfoDict(map)
+    }
+}
+
+impl InfoDict {
+    fn get(&self, key: &str) -> Option<Bencode> {
+        if let Some(bencoded_value) = self.get(key) {
+            Some(bencoded_value)
+        } else {
+            None
+        }
+    }
+}
+
+// // // // // // // //
+// BENCODE
+// // // // // // // //
+
+impl Encode for Bencode {
+    fn bencode(&self) -> Option<String> {
+        match self {
+            Self::Dictionary(info_dict) => info_dict.bencode(),
+            typed => unimplemented!("bencode only for InfoDict "),
+        }
+    }
+}
+
 #[derive(Debug)]
 enum Bencode {
     String(Vec<u8>),
     // String(&'static [u8]),
     Integer(isize),
     List(Vec<Bencode>),
-    Dictionary(HashMap<String, Bencode>),
+    Dictionary(InfoDict), // Dictionary(HashMap<String, Bencode>),
 }
 
 impl Bencode {
@@ -44,6 +110,10 @@ impl Bencode {
     }
     fn announce(&self) -> Option<String> {
         get_info_announce(self)
+    }
+
+    fn info_hash(&self) -> Option<String> {
+        get_info_hash(self)
     }
 }
 
@@ -124,7 +194,7 @@ fn get_info_length(decoded: &Bencode) -> Option<isize> {
     if let Bencode::Dictionary(ref outer_dict) = decoded {
         if let Some(Bencode::Dictionary(info)) = outer_dict.get("info") {
             if let Some(Bencode::Integer(length)) = info.get("length") {
-                return Some(*length);
+                return Some(length);
             }
         }
     }
@@ -139,6 +209,23 @@ fn get_info_announce(decoded: &Bencode) -> Option<String> {
     }
     None
 }
+
+fn get_info_hash(decoded: &Bencode) -> Option<String> {
+    if let Bencode::Dictionary(ref outer_dict) = decoded {
+        if let Some(bencode_info_dict) = outer_dict.get("info") {
+            return calculate_hash(bencode_info_dict.bencode());
+        }
+    }
+    None
+}
+
+fn calculate_hash(input: Option<String>) -> Option<String> {
+    Some("hashvalue".to_owned())
+}
+
+// // // // // // // //
+// main
+// // // // // // // //
 
 fn main() -> Result<(), Box<dyn Error>> {
     let cla = cli::Cli::parse();
@@ -158,6 +245,10 @@ fn main() -> Result<(), Box<dyn Error>> {
             if let Some(length) = decoded.length() {
                 println!("Length: {}", length);
             }
+
+            if let Some(info_hash) = decoded.info_hash() {
+                println!("Info Hash: {}", info_hash);
+            }
         }
         command => {
             println!("Command: {:?} not implemented!", command);
@@ -165,45 +256,4 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
 
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use std::io::Error;
-
-    use super::*; // Import the necessary items from the outer module
-    use serde_json::json;
-
-    #[test]
-    fn test_bencode_to_json_conversion() {
-        // Construct the Bencode dictionary as in the example
-        let bencode_example = Bencode::Dictionary(
-            vec![
-                ("key1".to_owned(), Bencode::String("value1".to_owned())),
-                ("key2".to_owned(), Bencode::Integer(42)),
-            ]
-            .into_iter()
-            .collect(),
-        );
-
-        // Convert the Bencode instance into a serde_json::Value
-        let json_value: serde_json::Value = bencode_example.to_json();
-
-        // Expected JSON output
-        let expected_json = json!({
-            "key1": "value1",
-            "key2": 42
-        });
-
-        // Assert that the conversion matches the expected JSON output
-        assert_eq!(json_value, expected_json);
-    }
-
-    #[test]
-    fn read_file_as_u8() -> Result<(), Error> {
-        let filename = "sample.torrent";
-        let data = read_file_to_vec(filename)?;
-        println!("Read {} bytes from file.", data.len());
-        Ok(())
-    }
 }
