@@ -52,12 +52,8 @@ impl FromIterator<(String, Bencode)> for InfoDict {
 }
 
 impl InfoDict {
-    fn get(&self, key: &str) -> Option<Bencode> {
-        if let Some(bencoded_value) = self.get(key) {
-            Some(bencoded_value)
-        } else {
-            None
-        }
+    fn get(&self, key: &str) -> Option<&Bencode> {
+        self.0.get(key)
     }
 }
 
@@ -80,7 +76,7 @@ enum Bencode {
     // String(&'static [u8]),
     Integer(isize),
     List(Vec<Bencode>),
-    Dictionary(InfoDict), // Dictionary(HashMap<String, Bencode>),
+    Dictionary(InfoDict),
 }
 
 impl Bencode {
@@ -194,7 +190,7 @@ fn get_info_length(decoded: &Bencode) -> Option<isize> {
     if let Bencode::Dictionary(ref outer_dict) = decoded {
         if let Some(Bencode::Dictionary(info)) = outer_dict.get("info") {
             if let Some(Bencode::Integer(length)) = info.get("length") {
-                return Some(length);
+                return Some(*length);
             }
         }
     }
