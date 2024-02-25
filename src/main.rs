@@ -153,9 +153,11 @@ fn hashmap_bencode(hashmap: &HashMap<String, Bencode>) -> Vec<u8> {
     let mut sorted_keys: Vec<String> = hashmap.keys().cloned().collect();
 
     // Sort the keys
-    sorted_keys.sort();
+    // sorted_keys.sort();
+    // ensure lexicographical sorting, not alphanumeric sorting
+    sorted_keys.sort_by(|a, b| a.cmp(b));
 
-    println!("{:?}", sorted_keys);
+    // println!("{:?}", sorted_keys);
 
     let mut bencoded_pairs: Vec<u8> = Vec::new();
     bencoded_pairs.push(b'd');
@@ -164,11 +166,11 @@ fn hashmap_bencode(hashmap: &HashMap<String, Bencode>) -> Vec<u8> {
     for bencoded_key in sorted_keys {
         if let Some(value) = hashmap.get(&bencoded_key) {
             let bencoded_value = value.bencode();
-            println!("key: {:?}", bencoded_key);
-            println!(
-                "value: {:?}",
-                bencoded_value // String::from_utf8(bencoded_value.clone()).ok()
-            );
+            // println!("key: {:?}", bencoded_key);
+            // println!(
+            //     "value: {:?}",
+            //     bencoded_value // String::from_utf8(bencoded_value.clone()).ok()
+            // );
 
             bencoded_pairs.extend(bencoded_key.as_bytes());
             bencoded_pairs.extend(bencoded_value);
