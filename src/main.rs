@@ -155,7 +155,8 @@ fn hashmap_bencode(hashmap: &HashMap<String, Bencode>) -> Vec<u8> {
     // Sort the keys
     // sorted_keys.sort();
     // ensure lexicographical sorting, not alphanumeric sorting
-    sorted_keys.sort_by(|a, b| a.cmp(b));
+    // sorted_keys.sort_by(|a, b| a.cmp(b));
+    sorted_keys.sort_by(|a, b| a.as_bytes().cmp(b.as_bytes()));
 
     // println!("{:?}", sorted_keys);
 
