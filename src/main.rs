@@ -115,10 +115,11 @@ fn integer_bencode(isize_int: &isize) -> Vec<u8> {
     let mut new_vec_u8: Vec<u8> = Vec::new();
 
     new_vec_u8.push(b'i');
-    // does it cover negative values?
+    // -52 -> "-52"
     let number_string = isize_int.to_string();
     // isize may have optional "-" in front
     let bytes: Vec<u8> = if let Some('-') = number_string.chars().next() {
+        new_vec_u8.push(b'-');
         number_string[1..]
             .chars()
             .map(|c| c.to_digit(10).unwrap() as u8)
@@ -132,7 +133,6 @@ fn integer_bencode(isize_int: &isize) -> Vec<u8> {
     new_vec_u8.extend(bytes);
     new_vec_u8.push(b'e');
     new_vec_u8
-    // String::from_utf8(new_vec_u8).ok()
 }
 
 fn list_bencode(vec_bencode: &Vec<Bencode>) -> Vec<u8> {
@@ -141,22 +141,6 @@ fn list_bencode(vec_bencode: &Vec<Bencode>) -> Vec<u8> {
         .iter()
         .flat_map(|bencode| bencode.bencode())
         .collect();
-    // .collect(); // Assuming Bencode has a .bencode() method
-    // has a .bencode() method that returns Option<String>
-    // .try_fold(vec![], |mut acc, opt_string| {
-    //     if let Some(string) = opt_string {
-    //         acc.push(string);
-    //         Ok(acc)
-    //     } else {
-    //         Err(())
-    //     }
-    // })
-    // .ok()?;
-
-    // Join the bencoded elements into a single string
-    // let bencoded_list = bencoded_elements.join("");
-
-    // Some(bencoded_list)
     bencoded_elements
 }
 
@@ -182,14 +166,6 @@ fn hashmap_bencode(hashmap: &HashMap<String, Bencode>) -> Vec<u8> {
             bencoded_pairs.extend(bencoded_value);
         }
     }
-
-    // for (bencoded_key, value) in hashmap {
-    //     let bencoded_value = value.bencode();
-    //     // let bencoded_pair = format!("{}{}", bencoded_key, bencoded_value);
-
-    //     bencoded_pairs.extend(bencoded_key.as_bytes());
-    //     bencoded_pairs.extend(bencoded_value);
-    // }
     bencoded_pairs.push(b'e');
     bencoded_pairs
 }
