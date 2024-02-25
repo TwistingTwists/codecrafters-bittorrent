@@ -1,9 +1,12 @@
-#[allow(unused_imports)]
-#[allow(dead_code)]
+#![allow(unused_imports)]
+#![allow(dead_code)]
+#![allow(unused_variables)]
 mod cli;
 use clap::Parser;
 
 use serde_json::Value;
+use sha1::{Digest, Sha1};
+// use std::ascii::AsciiExt;
 use std::error::Error;
 use std::path::PathBuf;
 use std::{collections::HashMap, fs, io, str};
@@ -22,13 +25,17 @@ use std::{collections::HashMap, fs, io, str};
 struct InfoDict(HashMap<String, Bencode>);
 
 trait Encode {
-    fn bencode(&self) -> Option<String>;
+    fn bencode(&self) -> Vec<u8>;
 }
 
 impl Encode for InfoDict {
-    fn bencode(&self) -> Option<String> {
-        println!("impl Encode for InfoDict -> bencode");
-        None
+    fn bencode(&self) -> Vec<u8> {
+        let InfoDict(hashmap) = self;
+        let hash_map_as_vec_u8 = hashmap_bencode(hashmap);
+
+        // println!("{:#?} infodict - vec", hash_map_as_vec_u8);
+        hash_map_as_vec_u8
+        // Some(hash_map_as_str)
     }
 }
 
@@ -62,12 +69,113 @@ impl InfoDict {
 // // // // // // // //
 
 impl Encode for Bencode {
-    fn bencode(&self) -> Option<String> {
+    fn bencode(&self) -> Vec<u8> {
         match self {
-            Self::Dictionary(info_dict) => info_dict.bencode(),
-            typed => unimplemented!("bencode only for InfoDict "),
+            Self::String(vec_u8) => {
+                let return_val = string_bencode(vec_u8);
+                // println!("{:#?} string", return_val);
+                return_val
+            }
+            Self::Integer(isize_int) => {
+                let return_val = integer_bencode(isize_int);
+                // println!("{:#?} isize", return_val);
+                return_val
+            }
+            Self::List(vec_bencode) => {
+                let return_val = list_bencode(vec_bencode);
+                // println!("{:#?} list", return_val);
+                return_val
+            }
+            Self::Dictionary(info_dict) => {
+                // println!("{:#?} info_dict", info_dict);
+
+                info_dict.bencode()
+            } // typed => unimplemented!("bencode only for InfoDict "),
         }
     }
+}
+
+fn string_bencode(vec_u8: &Vec<u8>) -> Vec<u8> {
+    let mut new_vec_u8: Vec<u8> = Vec::new();
+    let length: u8 = vec_u8
+        .len()
+        .try_into() // Convert usize to u8
+        .expect("Length cannot exceed 255");
+
+    new_vec_u8.push(length);
+
+    new_vec_u8.push(b':');
+    new_vec_u8.extend(vec_u8);
+    // println!("{:#?} new_vec_u8 in string bencode", new_vec_u8);
+    new_vec_u8
+    // String::from_utf8(new_vec_u8).ok()
+}
+
+fn integer_bencode(isize_int: &isize) -> Vec<u8> {
+    let mut new_vec_u8: Vec<u8> = Vec::new();
+
+    new_vec_u8.push(b'i');
+    // does it cover negative values?
+    let number_string = isize_int.to_string();
+    // isize may have optional "-" in front
+    let bytes: Vec<u8> = if let Some('-') = number_string.chars().next() {
+        number_string[1..]
+            .chars()
+            .map(|c| c.to_digit(10).unwrap() as u8)
+            .collect()
+    } else {
+        number_string
+            .chars()
+            .map(|c| c.to_digit(10).unwrap() as u8)
+            .collect()
+    };
+    new_vec_u8.extend(bytes);
+    new_vec_u8.push(b'e');
+    new_vec_u8
+    // String::from_utf8(new_vec_u8).ok()
+}
+
+fn list_bencode(vec_bencode: &Vec<Bencode>) -> Vec<u8> {
+    // Use map() to apply .bencode() on each element
+    let bencoded_elements: Vec<u8> = vec_bencode
+        .iter()
+        .flat_map(|bencode| bencode.bencode())
+        .collect();
+    // .collect(); // Assuming Bencode has a .bencode() method
+    // has a .bencode() method that returns Option<String>
+    // .try_fold(vec![], |mut acc, opt_string| {
+    //     if let Some(string) = opt_string {
+    //         acc.push(string);
+    //         Ok(acc)
+    //     } else {
+    //         Err(())
+    //     }
+    // })
+    // .ok()?;
+
+    // Join the bencoded elements into a single string
+    // let bencoded_list = bencoded_elements.join("");
+
+    // Some(bencoded_list)
+    bencoded_elements
+}
+
+fn hashmap_bencode(hashmap: &HashMap<String, Bencode>) -> Vec<u8> {
+    let mut bencoded_pairs: Vec<u8> = Vec::new();
+    bencoded_pairs.push(b'd');
+
+    for (bencoded_key, value) in hashmap {
+        let bencoded_value = value.bencode();
+        // let bencoded_pair = format!("{}{}", bencoded_key, bencoded_value);
+
+        bencoded_pairs.extend(bencoded_key.as_bytes());
+        bencoded_pairs.extend(bencoded_value);
+    }
+    bencoded_pairs.push(b'e');
+
+    // let joined_pairs = bencoded_pairs.join("");
+    bencoded_pairs
+    // Some(joined_pairs)
 }
 
 #[derive(Debug)]
@@ -208,15 +316,26 @@ fn get_info_announce(decoded: &Bencode) -> Option<String> {
 
 fn get_info_hash(decoded: &Bencode) -> Option<String> {
     if let Bencode::Dictionary(ref outer_dict) = decoded {
-        if let Some(bencode_info_dict) = outer_dict.get("info") {
+        if let Some(Bencode::Dictionary(bencode_info_dict)) = outer_dict.get("info") {
             return calculate_hash(bencode_info_dict.bencode());
         }
     }
     None
 }
 
-fn calculate_hash(input: Option<String>) -> Option<String> {
-    Some("hashvalue".to_owned())
+fn calculate_hash(input: Vec<u8>) -> Option<String> {
+    // Create a SHA-1 hasher
+    let mut hasher = Sha1::new();
+
+    // Update the hasher with the bytes of the dictionary
+    hasher.update(input);
+
+    // Calculate the final hash
+    let result = hasher.finalize();
+    let hex_string = format!("{:x}", result);
+
+    // println!("calculate hash = {:?} ", hex_string);
+    Some(hex_string)
 }
 
 // // // // // // // //
@@ -245,9 +364,6 @@ fn main() -> Result<(), Box<dyn Error>> {
             if let Some(info_hash) = decoded.info_hash() {
                 println!("Info Hash: {}", info_hash);
             }
-        }
-        command => {
-            println!("Command: {:?} not implemented!", command);
         }
     }
 
