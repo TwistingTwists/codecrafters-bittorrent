@@ -3,9 +3,9 @@
 #![allow(unused_variables)]
 mod cli;
 use clap::Parser;
-
 use serde_json::Value;
 use sha1::{Digest, Sha1};
+use std::collections::BTreeMap;
 // use std::ascii::AsciiExt;
 use std::error::Error;
 use std::path::PathBuf;
@@ -161,21 +161,37 @@ fn list_bencode(vec_bencode: &Vec<Bencode>) -> Vec<u8> {
 }
 
 fn hashmap_bencode(hashmap: &HashMap<String, Bencode>) -> Vec<u8> {
+    // use sorted keys in hashmap
+    // Convert the HashMap to a BTreeMap with sorted keys
+    // let btreemap: BTreeMap<String, Bencode> = hashmap.into_iter().collect();
+
+    // Get the keys from the hashmap
+    let mut sorted_keys: Vec<String> = hashmap.keys().cloned().collect();
+
+    // Sort the keys
+    sorted_keys.sort();
+
     let mut bencoded_pairs: Vec<u8> = Vec::new();
     bencoded_pairs.push(b'd');
 
-    for (bencoded_key, value) in hashmap {
-        let bencoded_value = value.bencode();
-        // let bencoded_pair = format!("{}{}", bencoded_key, bencoded_value);
-
-        bencoded_pairs.extend(bencoded_key.as_bytes());
-        bencoded_pairs.extend(bencoded_value);
+    // Iterate over the sorted keys and access the values from the hashmap
+    for bencoded_key in sorted_keys {
+        if let Some(value) = hashmap.get(&bencoded_key) {
+            let bencoded_value = value.bencode();
+            bencoded_pairs.extend(bencoded_key.as_bytes());
+            bencoded_pairs.extend(bencoded_value);
+        }
     }
-    bencoded_pairs.push(b'e');
 
-    // let joined_pairs = bencoded_pairs.join("");
+    // for (bencoded_key, value) in hashmap {
+    //     let bencoded_value = value.bencode();
+    //     // let bencoded_pair = format!("{}{}", bencoded_key, bencoded_value);
+
+    //     bencoded_pairs.extend(bencoded_key.as_bytes());
+    //     bencoded_pairs.extend(bencoded_value);
+    // }
+    bencoded_pairs.push(b'e');
     bencoded_pairs
-    // Some(joined_pairs)
 }
 
 #[derive(Debug)]
@@ -327,12 +343,13 @@ fn calculate_hash(input: Vec<u8>) -> Option<String> {
     // Create a SHA-1 hasher
     let mut hasher = Sha1::new();
 
+    // println!("{:?}", input);
     // Update the hasher with the bytes of the dictionary
     hasher.update(input);
 
     // Calculate the final hash
     let result = hasher.finalize();
-    let hex_string = format!("{:x}", result);
+    let hex_string = format!("{:02x}", result);
 
     // println!("calculate hash = {:?} ", hex_string);
     Some(hex_string)
