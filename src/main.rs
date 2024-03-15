@@ -241,10 +241,10 @@ fn is_first_element_digit(slice: &[u8]) -> bool {
 }
 
 fn decode_bencoded_value(encoded_value: &[u8]) -> (Bencode, &[u8]) {
-    print!(
-        "\n {:*<20}\n decode_bencoded_value = {:?} \n {:*<20}\n ",
-        "", encoded_value, ""
-    );
+    // print!(
+    //     "\n {:*<20}\n decode_bencoded_value = {:?} \n {:*<20}\n ",
+    //     "", encoded_value, ""
+    // );
 
     if ((*encoded_value.first().unwrap()) as char).is_ascii_digit() {
         // Example: "5:hello" -> "hello"
