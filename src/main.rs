@@ -6,7 +6,6 @@ use clap::Parser;
 use serde_json::Value;
 use sha1::{Digest, Sha1};
 use std::collections::BTreeMap;
-// use std::ascii::AsciiExt;
 use std::error::Error;
 use std::path::PathBuf;
 use std::{collections::HashMap, fs, io, str};
@@ -32,10 +31,7 @@ impl Encode for InfoDict {
     fn bencode(&self) -> Vec<u8> {
         let InfoDict(hashmap) = self;
         let hash_map_as_vec_u8 = hashmap_bencode(hashmap);
-
-        // println!("{:#?} infodict - vec", hash_map_as_vec_u8);
         hash_map_as_vec_u8
-        // Some(hash_map_as_str)
     }
 }
 
@@ -158,22 +154,23 @@ fn hashmap_bencode(hashmap: &HashMap<String, Bencode>) -> Vec<u8> {
     // sorted_keys.sort_by(|a, b| a.cmp(b));
     sorted_keys.sort_by(|a, b| a.as_bytes().cmp(b.as_bytes()));
 
-    // println!("{:?}", sorted_keys);
+    // println!("sorted_keys: {:?} ", sorted_keys);
 
     let mut bencoded_pairs: Vec<u8> = Vec::new();
     bencoded_pairs.push(b'd');
 
     // Iterate over the sorted keys and access the values from the hashmap
-    for bencoded_key in sorted_keys {
-        if let Some(value) = hashmap.get(&bencoded_key) {
+    for key in sorted_keys {
+        if let Some(value) = hashmap.get(&key) {
             let bencoded_value = value.bencode();
-            // println!("key: {:?}", bencoded_key);
+            let bencoded_key = Bencode::String(key.as_bytes().to_vec()).bencode();
+            // println!("bencoded_key: {:?}", bencoded_key);
             // println!(
-            //     "value: {:?}",
+            //     "bencoded_value: {:?}",
             //     bencoded_value // String::from_utf8(bencoded_value.clone()).ok()
             // );
 
-            bencoded_pairs.extend(bencoded_key.as_bytes());
+            bencoded_pairs.extend(bencoded_key);
             bencoded_pairs.extend(bencoded_value);
         }
     }
@@ -320,6 +317,13 @@ fn get_info_announce(decoded: &Bencode) -> Option<String> {
 fn get_info_hash(decoded: &Bencode) -> Option<String> {
     if let Bencode::Dictionary(ref outer_dict) = decoded {
         if let Some(Bencode::Dictionary(bencode_info_dict)) = outer_dict.get("info") {
+            // println!("bencode_info_dict: {:?}\n\n", bencode_info_dict);
+            // println!(
+            //     "bencode_info_dict.bencode.decode: {:?}, {:?}\n\n",
+            //     decode_bencoded_value(&bencode_info_dict.bencode()),
+            //     bencode_info_dict.bencode().len()
+            // );
+
             return calculate_hash(bencode_info_dict.bencode());
         }
     }
@@ -357,7 +361,10 @@ fn main() -> Result<(), Box<dyn Error>> {
         cli::Commands::Info { torrent_file } => {
             let file_contents = read_file_to_vec(&torrent_file).unwrap();
             let bytes_slice = file_contents.as_slice();
+            // let total = bytes_slice.len();
+            // println!("\nbytes_slice: {:?}", &bytes_slice[total - 118..]);
             let (decoded, _) = decode_bencoded_value(&bytes_slice);
+
             if let Some(url) = decoded.announce() {
                 println!("Tracker URL: {}", url);
             }
