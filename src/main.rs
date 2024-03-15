@@ -98,7 +98,7 @@ fn string_bencode(vec_u8: &Vec<u8>) -> Vec<u8> {
         .try_into() // Convert usize to u8
         .expect("Length cannot exceed 255");
 
-    new_vec_u8.push(length);
+    new_vec_u8.extend_from_slice(length.to_string().as_bytes());
 
     new_vec_u8.push(b':');
     new_vec_u8.extend(vec_u8);
@@ -113,18 +113,19 @@ fn integer_bencode(isize_int: &isize) -> Vec<u8> {
     new_vec_u8.push(b'i');
     // -52 -> "-52"
     let number_string = isize_int.to_string();
+
     // isize may have optional "-" in front
     let bytes: Vec<u8> = if let Some('-') = number_string.chars().next() {
         new_vec_u8.push(b'-');
-        number_string[1..]
-            .chars()
-            .map(|c| c.to_digit(10).unwrap() as u8)
-            .collect()
+        number_string[1..].as_bytes().to_owned()
+        // .chars()
+        // .map(|c| c.to_digit(10).unwrap() as u8)
+        // .collect()
     } else {
-        number_string
-            .chars()
-            .map(|c| c.to_digit(10).unwrap() as u8)
-            .collect()
+        number_string.as_bytes().to_owned()
+        // .chars()
+        // .map(|c| c.to_digit(10).unwrap() as u8)
+        // .collect()
     };
     new_vec_u8.extend(bytes);
     new_vec_u8.push(b'e');
@@ -164,7 +165,16 @@ fn hashmap_bencode(hashmap: &HashMap<String, Bencode>) -> Vec<u8> {
         if let Some(value) = hashmap.get(&key) {
             let bencoded_value = value.bencode();
             let bencoded_key = Bencode::String(key.as_bytes().to_vec()).bencode();
-            // println!("bencoded_key: {:?}", bencoded_key);
+            // println!("key: {:?}", key);
+            // println!(
+            //     "bencoded_key: {:?}",
+            //     String::from_utf8(bencoded_key.clone())
+            // );
+            // println!("-------------- key - string - bencoded -------");
+
+            // println!("value: {:?}", value);
+            // println!("bencoded_value: {:?}", bencoded_value);
+            // println!(" ============= value - bencoded_value =============");
             // println!(
             //     "bencoded_value: {:?}",
             //     bencoded_value // String::from_utf8(bencoded_value.clone()).ok()
@@ -221,9 +231,27 @@ impl Bencode {
     }
 }
 
+fn is_first_element_digit(slice: &[u8]) -> bool {
+    if let Some(&first_byte) = slice.get(0) {
+        let first_char = first_byte as char;
+        first_char.is_ascii_digit()
+    } else {
+        false
+    }
+}
+
 fn decode_bencoded_value(encoded_value: &[u8]) -> (Bencode, &[u8]) {
-    if encoded_value.first().unwrap().is_ascii_digit() {
+    print!(
+        "\n {:*<20}\n decode_bencoded_value = {:?} \n {:*<20}\n ",
+        "", encoded_value, ""
+    );
+
+    if ((*encoded_value.first().unwrap()) as char).is_ascii_digit() {
         // Example: "5:hello" -> "hello"
+        // println!(
+        //     "decode Bencode::String -> {:?}",
+        //     ((*encoded_value.first().unwrap()) as char).is_ascii_digit()
+        // );
         let colon_index = encoded_value.iter().position(|&x| x == b':').unwrap();
         let number_string = &encoded_value[..colon_index];
         let number = str::from_utf8(number_string)
@@ -241,6 +269,7 @@ fn decode_bencoded_value(encoded_value: &[u8]) -> (Bencode, &[u8]) {
     if encoded_value.starts_with(&[b'i']) {
         let end_index = encoded_value.iter().position(|&x| x == b'e').unwrap();
         let number_value = &encoded_value[1..end_index];
+        // println!("{:?} number_value", number_value);
         return (
             Bencode::Integer(
                 str::from_utf8(number_value)
